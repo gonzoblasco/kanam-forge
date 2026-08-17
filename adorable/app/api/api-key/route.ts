@@ -9,6 +9,12 @@ function hasGlobalKey(): boolean {
   return !!(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
 }
 
+/** Check if the configured provider does not need an API key (e.g. Ollama) */
+function isLocalProvider(): boolean {
+  const p = (process.env.LLM_PROVIDER ?? "").toLowerCase().trim();
+  return p === "ollama" || p === "local";
+}
+
 /** GET – returns whether the user needs to provide a key */
 export async function GET() {
   const jar = await cookies();
@@ -18,6 +24,7 @@ export async function GET() {
   return NextResponse.json({
     hasGlobalKey: hasGlobalKey(),
     hasUserKey: !!userKey,
+    needsNoKey: isLocalProvider(),
     provider: userProvider,
   });
 }

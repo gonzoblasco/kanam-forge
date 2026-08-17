@@ -27,6 +27,7 @@ type Provider = "openai" | "anthropic";
 type ApiKeyStatus = {
   hasGlobalKey: boolean;
   hasUserKey: boolean;
+  needsNoKey?: boolean;
   provider: Provider;
 };
 
@@ -65,8 +66,9 @@ export function ApiKeyGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If there's a global key OR the user already saved one, render the app
-  if (status?.hasGlobalKey || status?.hasUserKey) {
+  // If there's a global key, the user already saved one, or the provider
+  // doesn't need a key (Ollama local), render the app
+  if (status?.hasGlobalKey || status?.hasUserKey || status?.needsNoKey) {
     return <>{children}</>;
   }
 

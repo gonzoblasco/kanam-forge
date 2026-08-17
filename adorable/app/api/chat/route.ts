@@ -58,7 +58,13 @@ export async function POST(req: Request) {
     process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY
   );
 
-  if (!hasGlobalKey && !userApiKey) {
+  // Ollama local does not need an API key - only OpenAI/Anthropic do.
+  const provider = (userProvider ?? process.env.LLM_PROVIDER ?? "openai")
+    .toLowerCase()
+    .trim();
+  const isOllama = provider === "ollama" || provider === "local";
+
+  if (!isOllama && !hasGlobalKey && !userApiKey) {
     return Response.json(
       { error: "No API key configured. Please add your API key in settings." },
       { status: 401 },

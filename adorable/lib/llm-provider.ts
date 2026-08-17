@@ -3,7 +3,7 @@ import {
   createOpenAI,
   type OpenAIResponsesProviderOptions,
 } from "@ai-sdk/openai";
-import { createOllama } from "ollama-ai-provider";
+import { createOllama } from "ollama-ai-provider-v2";
 import {
   stepCountIs,
   streamText,
@@ -22,9 +22,9 @@ const getProviderName = (override?: string): LlmProviderName => {
 };
 
 const getOllamaModel = () =>
-  process.env["OLLAMA_MODEL"] ?? "kimi-k2.7-code:cloud";
+  process.env["OLLAMA_MODEL"] ?? "deepseek-v4-flash:cloud";
 
-const getOllamaBaseUrl = () => process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434";
+const getOllamaBaseUrl = () => process.env["OLLAMA_BASE_URL"] ?? "http://localhost:11434/api";
 
 type StreamLlmResponseParams = {
   system: string;
