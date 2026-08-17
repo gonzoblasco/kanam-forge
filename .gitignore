@@ -1,1 +1,11 @@
 node_modules
+.next/
+out/
+dist/
+.env*
+!.env.example
+.vercel
+.DS_Store
+
+# double-git: .knowledge belongs to the workspace repo, not the project repo
+/.knowledge/
