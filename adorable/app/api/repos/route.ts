@@ -1,191 +1,116 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { freestyle } from "freestyle-sandboxes";
-import { TEMPLATE_REPO } from "@/lib/vars";
-import { createVmForRepo } from "@/lib/adorable-vm";
-import { getOrCreateIdentitySession } from "@/lib/identity-session";
+import { existsSync, readdirSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 import {
-  ADORABLE_WRAPPER_REPO_PREFIX,
+  bootstrapProject,
+  createVmForRepo,
+  ensureSandboxImage,
+  isDockerAvailable,
+} from "@/lib/docker/docker-vm";
+import {
   type RepoMetadata,
-  type RepoDeploymentSummary,
   createConversationInRepo,
   readRepoMetadata,
   writeRepoMetadata,
-} from "@/lib/repo-storage";
+} from "@/lib/docker/repo-storage-local";
 
-const toDisplayRepoName = (name?: string | null) => {
-  if (!name) return undefined;
-  return name.startsWith(ADORABLE_WRAPPER_REPO_PREFIX)
-    ? name.slice(ADORABLE_WRAPPER_REPO_PREFIX.length)
-    : name;
-};
+const KANAM_FORGE_DATA_DIR =
+  process.env.KANAM_FORGE_DATA_DIR ?? join(homedir(), ".kanam-forge", "projects");
 
-type DeploymentEntry = {
-  deploymentId: string;
-  state: "building" | "deployed" | "failed";
-  domains: string[];
-};
-
-const reconcileDeploymentState = (
-  deployment: RepoDeploymentSummary,
-  entries: DeploymentEntry[],
-): RepoDeploymentSummary => {
-  const matchById = deployment.deploymentId
-    ? entries.find((entry) => entry.deploymentId === deployment.deploymentId)
-    : undefined;
-
-  const matchByDomain = entries.find((entry) =>
-    entry.domains.includes(deployment.domain),
-  );
-
-  const match = matchById ?? matchByDomain;
-  if (!match) {
-    return {
-      ...deployment,
-      state: deployment.state === "deploying" ? "idle" : deployment.state,
-    };
+const listLocalProjects = (): string[] => {
+  try {
+    if (!existsSync(KANAM_FORGE_DATA_DIR)) return [];
+    return readdirSync(KANAM_FORGE_DATA_DIR).filter((id) =>
+      existsSync(join(KANAM_FORGE_DATA_DIR, id, "metadata.json")),
+    );
+  } catch {
+    return [];
   }
-
-  const state: RepoDeploymentSummary["state"] =
-    match.state === "deployed"
-      ? "live"
-      : match.state === "failed"
-        ? "failed"
-        : "deploying";
-
-  return {
-    ...deployment,
-    deploymentId: match.deploymentId ?? deployment.deploymentId,
-    state,
-  };
-};
-
-const toRepoResponse = async (
-  repo: { id: string; name?: string | null },
-  deploymentEntries: DeploymentEntry[],
-) => {
-  const metadata = await readRepoMetadata(repo.id);
-  const repoDisplayName = toDisplayRepoName(repo.name);
-  const metadataDisplayName = toDisplayRepoName(metadata?.name);
-  const reconciledMetadata = metadata
-    ? {
-        ...metadata,
-        deployments: metadata.deployments.map((deployment) =>
-          reconcileDeploymentState(deployment, deploymentEntries),
-        ),
-      }
-    : metadata;
-
-  return {
-    id: repo.id,
-    name: repoDisplayName ?? metadataDisplayName ?? "Untitled Repo",
-    metadata: reconciledMetadata,
-  };
 };
 
 export async function GET() {
-  const { identityId, identity } = await getOrCreateIdentitySession();
-  const { repositories } = await identity.permissions.git.list({ limit: 200 });
-  const wrapperRepositories = repositories.filter((repo) =>
-    (repo.name ?? "").startsWith(ADORABLE_WRAPPER_REPO_PREFIX),
-  );
-
-  let deploymentEntries: DeploymentEntry[] = [];
-  try {
-    const { entries } = await freestyle.serverless.deployments.list({
-      limit: 500,
-    });
-    deploymentEntries = entries as DeploymentEntry[];
-  } catch {
-    deploymentEntries = [];
-  }
-
-  const items = await Promise.all(
-    wrapperRepositories.map((repo) => toRepoResponse(repo, deploymentEntries)),
-  );
+  const repoIds = listLocalProjects();
+  const repositories = repoIds.map((id) => {
+    const metadata = readRepoMetadataSync(id);
+    return {
+      id,
+      name: metadata?.name ?? id,
+      metadata,
+    };
+  });
 
   return NextResponse.json({
-    identityId,
-    repositories: items,
+    identityId: "local",
+    repositories,
   });
 }
 
+// Sync wrapper for readRepoMetadata (it is async but resolves immediately)
+function readRepoMetadataSync(repoId: string): RepoMetadata | null {
+  // readRepoMetadata is async; use a sync read via the same file
+  const full = join(KANAM_FORGE_DATA_DIR, repoId, "metadata.json");
+  try {
+    if (!existsSync(full)) return null;
+    const metadata = JSON.parse(require("fs").readFileSync(full, "utf8")) as RepoMetadata;
+    if (!metadata.sourceRepoId) return null;
+    return metadata;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
-  const { identity } = await getOrCreateIdentitySession();
+  if (!isDockerAvailable()) {
+    return NextResponse.json(
+      { error: "Docker is not available. Kanam Forge requires Docker to run the sandbox." },
+      { status: 500 },
+    );
+  }
 
   let requestedName: string | undefined;
   let requestedConversationTitle: string | undefined;
-  let githubRepoName: string | undefined;
   try {
     const payload = (await req.json()) as {
       name?: string;
       conversationTitle?: string;
-      githubRepoName?: string;
     };
-    const nextName = payload?.name?.trim();
-    const nextConversationTitle = payload?.conversationTitle?.trim();
-    const nextGithubRepoName = payload?.githubRepoName?.trim();
-    requestedName = nextName ? nextName : undefined;
-    requestedConversationTitle = nextConversationTitle
-      ? nextConversationTitle
-      : undefined;
-    githubRepoName = nextGithubRepoName ? nextGithubRepoName : undefined;
+    requestedName = payload?.name?.trim() || undefined;
+    requestedConversationTitle = payload?.conversationTitle?.trim() || undefined;
   } catch {
     requestedName = undefined;
     requestedConversationTitle = undefined;
-    githubRepoName = undefined;
   }
 
-  // Create repo with GitHub Sync or from template
-  let sourceRepoId: string;
-  if (githubRepoName) {
-    const { repo, repoId: createdRepoId } = await freestyle.git.repos.create(
-      requestedName ? { name: requestedName } : {},
-    );
-    sourceRepoId = createdRepoId;
-
-    // Enable GitHub Sync
-    await repo.githubSync.enable({ githubRepoName });
-  } else {
-    // Create from template
-    const created = await freestyle.git.repos.create({
-      ...(requestedName ? { name: requestedName } : {}),
-      import: {
-        commitMessage: "Initial commit",
-        url: TEMPLATE_REPO,
-        type: "git",
+  // Build the sandbox image once (idempotent)
+  try {
+    ensureSandboxImage();
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: `Failed to build sandbox image: ${error instanceof Error ? error.message : String(error)}`,
       },
-    });
-    sourceRepoId = created.repoId;
+      { status: 500 },
+    );
   }
 
-  const inferredName =
-    requestedName ?? githubRepoName?.split("/").pop()?.trim() ?? "Project";
-  const wrapperRepoName = `${ADORABLE_WRAPPER_REPO_PREFIX}${inferredName}`;
-  const wrapperCreated = await freestyle.git.repos.create({
-    name: wrapperRepoName,
-  });
-  const wrapperRepoId = wrapperCreated.repoId;
+  const repoId = randomUUID();
+  const inferredName = requestedName ?? "Project";
 
-  await identity.permissions.git.grant({
-    permission: "write",
-    repoId: sourceRepoId,
-  });
+  // Create the container for this project
+  const vm = await createVmForRepo(repoId);
 
-  await identity.permissions.git.grant({
-    permission: "write",
-    repoId: wrapperRepoId,
-  });
-
-  const vm = await createVmForRepo(sourceRepoId);
-
-  await identity.permissions.vms.grant({
-    vmId: vm.vmId,
-  });
+  // Provision the workspace + install deps + start dev server (async, best effort)
+  try {
+    await bootstrapProject(repoId);
+  } catch (error) {
+    console.error("bootstrapProject failed:", error);
+  }
 
   const initialMetadata: RepoMetadata = {
     version: 2,
-    sourceRepoId,
+    sourceRepoId: repoId,
     ...(requestedName ? { name: requestedName } : {}),
     vm,
     conversations: [],
@@ -194,18 +119,18 @@ export async function POST(req: Request) {
     productionDeploymentId: null,
   };
 
-  await writeRepoMetadata(wrapperRepoId, initialMetadata);
+  await writeRepoMetadata(repoId, initialMetadata);
 
   const conversationId = randomUUID();
   const metadata = await createConversationInRepo(
-    wrapperRepoId,
+    repoId,
     initialMetadata,
     conversationId,
     requestedConversationTitle,
   );
 
   return NextResponse.json({
-    id: wrapperRepoId,
+    id: repoId,
     metadata,
     conversationId,
   });

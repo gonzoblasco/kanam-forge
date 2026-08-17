@@ -1,13 +1,9 @@
 import { Assistant } from "../../assistant";
 import { RepoWelcome } from "@/components/assistant-ui/repo-welcome";
-import { getOrCreateIdentitySession } from "@/lib/identity-session";
 import { readConversationMessages } from "@/lib/repo-storage";
 
-const hasRepoAccess = async (repoId: string) => {
-  const { identity } = await getOrCreateIdentitySession();
-  const { repositories } = await identity.permissions.git.list({ limit: 200 });
-  return repositories.some((repo) => repo.id === repoId);
-};
+// Local MVP: no auth. Every local project is accessible.
+const hasRepoAccess = async (_repoId: string) => true;
 
 export default async function ConversationPage({
   params,

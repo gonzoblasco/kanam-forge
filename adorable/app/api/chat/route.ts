@@ -1,11 +1,9 @@
 import { type UIMessage } from "ai";
 import { cookies } from "next/headers";
-import { freestyle } from "freestyle-sandboxes";
-import { createTools as createVmTools } from "@/lib/create-tools";
+import { createTools } from "@/lib/docker/create-tools-local";
 import { streamLlmResponse } from "@/lib/llm-provider";
-import { adorableVmSpec } from "@/lib/adorable-vm";
-import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import { readRepoMetadata, saveConversationMessages } from "@/lib/repo-storage";
+import { refVm } from "@/lib/docker/docker-vm";
+import { readRepoMetadata, saveConversationMessages } from "@/lib/docker/repo-storage-local";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
 export async function POST(req: Request) {
@@ -34,14 +32,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const { identity } = await getOrCreateIdentitySession();
-  const { repositories } = await identity.permissions.git.list({ limit: 200 });
-  const hasAccess = repositories.some((repo) => repo.id === repoId);
-
-  if (!hasAccess) {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const metadata = await readRepoMetadata(repoId);
   if (!metadata) {
     return Response.json(
@@ -52,12 +42,9 @@ export async function POST(req: Request) {
 
   await saveConversationMessages(repoId, metadata, conversationId, messages);
 
-  const vm = freestyle.vms.ref({
-    vmId: metadata.vm.vmId,
-    spec: adorableVmSpec,
-  });
+  const vm = refVm(repoId);
 
-  const tools = createVmTools(vm, {
+  const tools = createTools(vm, {
     sourceRepoId: metadata.sourceRepoId,
     metadataRepoId: repoId,
   });
@@ -71,7 +58,6 @@ export async function POST(req: Request) {
     process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY
   );
 
-  // If no global key and no user key, reject
   if (!hasGlobalKey && !userApiKey) {
     return Response.json(
       { error: "No API key configured. Please add your API key in settings." },
@@ -83,7 +69,6 @@ export async function POST(req: Request) {
     system: SYSTEM_PROMPT,
     messages,
     tools,
-    // Only pass user key if there's no global key
     ...(hasGlobalKey
       ? {}
       : { apiKey: userApiKey, providerOverride: userProvider }),

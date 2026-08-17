@@ -1,41 +1,11 @@
 import { NextResponse } from "next/server";
-import { freestyle } from "freestyle-sandboxes";
-import { getOrCreateIdentitySession } from "@/lib/identity-session";
-import {
-  promoteRepoDeploymentToProduction,
-  readRepoMetadata,
-} from "@/lib/repo-storage";
-
-const assertRepoAccess = async (repoId: string) => {
-  const { identity } = await getOrCreateIdentitySession();
-  const { repositories } = await identity.permissions.git.list({ limit: 200 });
-  return repositories.some((repo) => repo.id === repoId);
-};
+import { readRepoMetadata } from "@/lib/repo-storage";
 
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ repoId: string }> },
 ) {
   const { repoId } = await params;
-
-  if (!(await assertRepoAccess(repoId))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  let deploymentId = "";
-  try {
-    const payload = (await req.json()) as { deploymentId?: string };
-    deploymentId = payload?.deploymentId?.trim() ?? "";
-  } catch {
-    deploymentId = "";
-  }
-
-  if (!deploymentId) {
-    return NextResponse.json(
-      { error: "deploymentId is required" },
-      { status: 400 },
-    );
-  }
 
   const metadata = await readRepoMetadata(repoId);
   if (!metadata) {
@@ -45,26 +15,14 @@ export async function POST(
     );
   }
 
-  if (!metadata.productionDomain) {
-    return NextResponse.json(
-      { error: "Configure a production domain ending in .style.dev first" },
-      { status: 400 },
-    );
-  }
-
-  await freestyle.domains.mappings.create({
-    domain: metadata.productionDomain,
-    deploymentId,
-  });
-
-  const nextMetadata = await promoteRepoDeploymentToProduction(
-    repoId,
-    metadata,
-    deploymentId,
+  // Local MVP: no serverless deploy target. Promoting to a production domain
+  // is not supported yet.
+  return NextResponse.json(
+    {
+      error: "Production deployment is not available in the local MVP.",
+      productionDomain: metadata.productionDomain,
+      productionDeploymentId: null,
+    },
+    { status: 501 },
   );
-
-  return NextResponse.json({
-    productionDomain: nextMetadata.productionDomain,
-    productionDeploymentId: nextMetadata.productionDeploymentId,
-  });
 }
