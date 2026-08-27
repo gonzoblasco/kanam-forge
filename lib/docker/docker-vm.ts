@@ -14,6 +14,11 @@ import { execSync, spawnSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import {
+  readRepoMetadata,
+  writeRepoMetadata,
+  type RepoMetadata,
+} from "@/lib/docker/repo-storage-local";
 
 const KANAM_FORGE_DATA_DIR =
   process.env.KANAM_FORGE_DATA_DIR ?? join(homedir(), ".kanam-forge", "projects");
@@ -210,10 +215,43 @@ export const refVm = (repoId: string) => {
         `-p 3020 ` +
         `${SANDBOX_IMAGE}`,
     );
+
+    // Assign host ports and update the metadata preview URL
+    try {
+      const previewHostPort = assignHostPort(name, 3000);
+      const metadata = readRepoMetadataSync(repoId);
+      if (metadata) {
+        writeRepoMetadata(repoId, {
+          ...metadata,
+          vm: {
+            ...metadata.vm,
+            previewUrl: `http://localhost:${previewHostPort}`,
+          },
+        });
+      }
+    } catch {
+      // ignore - preview URL will be stale but the container still works
+    }
+
+    // Start the dev server in the background (detached)
+    run(
+      `docker exec -d ${name} sh -c "cd /workspace && npm run dev > /workspace/.dev-server.log 2>&1"`,
+    );
   }
 
   return new DockerVm(name, ws);
 };
+
+// Sync read of repo metadata (readRepoMetadata is async but resolves immediately)
+function readRepoMetadataSync(repoId: string) {
+  const full = join(projectDir(repoId), "metadata.json");
+  try {
+    if (!existsSync(full)) return null;
+    return JSON.parse(readFileSync(full, "utf8")) as RepoMetadata;
+  } catch {
+    return null;
+  }
+}
 
 class DockerVm {
   constructor(
