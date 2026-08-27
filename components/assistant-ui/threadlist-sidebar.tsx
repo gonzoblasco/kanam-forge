@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useAuiState } from "@assistant-ui/react";
+import { useRouter } from "next/navigation";
 import { Sidebar, useSidebar } from "@/components/ui/sidebar";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
-import { ThreadListPrimitive } from "@assistant-ui/react";
 import { ListTreeIcon, PlusIcon, RocketIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KanamLogo } from "@/components/kanam-logo";
@@ -28,6 +28,7 @@ export function ThreadListSidebar({
 }: React.ComponentProps<typeof Sidebar>) {
   const [tab, setTab] = React.useState<"threads" | "deployments">("threads");
   const { open, setOpen } = useSidebar();
+  const router = useRouter();
   const metadata = useAuiState<AdorableMetadata | undefined>(({ thread }) => {
     for (let i = thread.messages.length - 1; i >= 0; i -= 1) {
       const m = thread.messages[i]?.metadata?.custom?.adorable as
@@ -83,18 +84,21 @@ export function ThreadListSidebar({
         <div className="min-h-0 min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
           <div className="flex h-full min-h-0 flex-col">
             <div className="relative border-b px-3 py-2.5">
-              <ThreadListPrimitive.New asChild>
-                <Button
-                  variant="ghost"
-                  className="flex h-9 w-full items-center justify-between gap-2 rounded-lg px-2.5 text-muted-foreground hover:text-foreground"
-                >
-                  <span className="flex items-center gap-2">
-                    <AdorableLogo />
-                    <span className="text-[13px] font-medium">Kanam Forge</span>
-                  </span>
-                  <PlusIcon className="size-3.5" />
-                </Button>
-              </ThreadListPrimitive.New>
+              <Button
+                variant="ghost"
+                className="flex h-9 w-full items-center justify-between gap-2 rounded-lg px-2.5 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  if (metadata?.repoId) {
+                    router.push(`/${metadata.repoId}`);
+                  }
+                }}
+              >
+                <span className="flex items-center gap-2">
+                  <AdorableLogo />
+                  <span className="text-[13px] font-medium">Kanam Forge</span>
+                </span>
+                <PlusIcon className="size-3.5" />
+              </Button>
             </div>
 
             <div className="min-h-0 flex-1 px-1.5 pt-1.5">

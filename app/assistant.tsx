@@ -298,7 +298,7 @@ export const Assistant = ({
     [],
   );
 
-  const runtimeKey = `${chatSessionIdRef.current}:${runtimeVersion}`;
+  const runtimeKey = `${localConversationId ?? localRepoId ?? "home"}:${runtimeVersion}`;
 
   const handleThreadStateChange = useCallback(
     (next: ThreadState) => {
