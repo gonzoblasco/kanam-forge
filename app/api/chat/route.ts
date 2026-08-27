@@ -1,10 +1,16 @@
 import { type UIMessage } from "ai";
 import { cookies } from "next/headers";
+import { homedir } from "os";
+import { join } from "path";
 import { createTools } from "@/lib/docker/create-tools-local";
 import { streamLlmResponse } from "@/lib/llm-provider";
 import { refVm } from "@/lib/docker/docker-vm";
 import { readRepoMetadata, saveConversationMessages } from "@/lib/docker/repo-storage-local";
+import { readProjectContext, buildProjectSystemPrompt } from "@/lib/project-context";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
+
+const KANAM_FORGE_DATA_DIR =
+  process.env.KANAM_FORGE_DATA_DIR ?? join(homedir(), ".kanam-forge", "projects");
 
 export async function POST(req: Request) {
   const payload = (await req.json()) as {
@@ -42,6 +48,17 @@ export async function POST(req: Request) {
 
   await saveConversationMessages(repoId, metadata, conversationId, messages);
 
+  let projectSystemPrompt = SYSTEM_PROMPT;
+  try {
+    const workspace = join(KANAM_FORGE_DATA_DIR, repoId, "workspace");
+    const context = await readProjectContext(workspace);
+    const projectSection = buildProjectSystemPrompt(context);
+    projectSystemPrompt = `${SYSTEM_PROMPT}\n\n${projectSection}`;
+  } catch (err) {
+    // If the workspace is not provisioned yet, fall back to the base prompt.
+    console.warn("[chat] no project context:", err instanceof Error ? err.message : err);
+  }
+
   const vm = refVm(repoId);
 
   const tools = createTools(vm, {
@@ -72,7 +89,7 @@ export async function POST(req: Request) {
   }
 
   const llm = await streamLlmResponse({
-    system: SYSTEM_PROMPT,
+    system: projectSystemPrompt,
     messages,
     tools,
     ...(hasGlobalKey
