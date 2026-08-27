@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { RepoDeployment, RepoItem, RepoVmInfo } from "@/lib/repo-types";
 import { ProjectConversationsProvider } from "@/lib/project-conversations-context";
 import { ReposProvider } from "@/lib/repos-context";
-import { PublishDialog } from "@/components/assistant-ui/publish-dialog";
+import { ExportDialog } from "@/components/assistant-ui/export-dialog";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -251,49 +251,6 @@ export function RepoWorkspaceShell({
     [repoId, selectedRepo?.conversations, router],
   );
 
-  const onSetProductionDomain = useCallback(
-    async (nextRepoId: string, domain: string) => {
-      const response = await fetch(
-        `/api/repos/${nextRepoId}/production-domain`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ domain }),
-        },
-      );
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(data?.error ?? "Failed to configure production domain");
-      }
-
-      await loadRepos();
-    },
-    [loadRepos],
-  );
-
-  const onPromoteDeployment = useCallback(
-    async (nextRepoId: string, deploymentId: string) => {
-      const response = await fetch(`/api/repos/${nextRepoId}/promote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deploymentId }),
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(data?.error ?? "Failed to promote deployment");
-      }
-
-      await loadRepos();
-    },
-    [loadRepos],
-  );
-
   const reposContextValue = useMemo(
     () => ({
       repos,
@@ -372,11 +329,7 @@ export function RepoWorkspaceShell({
                   </button>
                   <div className="ml-auto">
                     {selectedRepo.vm?.previewUrl && (
-                      <PublishDialog
-                        repo={selectedRepo}
-                        onSetProductionDomain={onSetProductionDomain}
-                        onPromoteDeployment={onPromoteDeployment}
-                      />
+                      <ExportDialog repoId={selectedRepo.id} />
                     )}
                   </div>
                 </div>
@@ -397,8 +350,6 @@ export function RepoWorkspaceShell({
                       previewUrl={selectedRepo.vm.previewUrl}
                       iframeRef={iframeRef}
                       repo={selectedRepo}
-                      onSetProductionDomain={onSetProductionDomain}
-                      onPromoteDeployment={onPromoteDeployment}
                     />
                   )}
                 </div>
@@ -758,14 +709,10 @@ function BrowserControls({
   previewUrl,
   iframeRef,
   repo,
-  onSetProductionDomain,
-  onPromoteDeployment,
 }: {
   previewUrl: string;
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   repo: RepoItem;
-  onSetProductionDomain: (repoId: string, domain: string) => Promise<void>;
-  onPromoteDeployment: (repoId: string, deploymentId: string) => Promise<void>;
 }) {
   const [urlValue, setUrlValue] = useState(() => {
     try {
@@ -860,11 +807,7 @@ function BrowserControls({
         />
       </form>
       <div className="ml-1.5">
-        <PublishDialog
-          repo={repo}
-          onSetProductionDomain={onSetProductionDomain}
-          onPromoteDeployment={onPromoteDeployment}
-        />
+        <ExportDialog repoId={repo.id} />
       </div>
     </>
   );

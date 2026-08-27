@@ -1,25 +1,8 @@
 import * as React from "react";
 import { Sidebar, useSidebar } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { KanamLogo } from "@/components/kanam-logo";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  FolderIcon,
-  GlobeIcon,
-  Loader2Icon,
-  PlusIcon,
-  RocketIcon,
-  SettingsIcon,
-} from "lucide-react";
+import { ExportDialog } from "@/components/assistant-ui/export-dialog";
+import { FolderIcon, PackageIcon, PlusIcon } from "lucide-react";
 
 export type RepoDeployment = {
   commitSha: string;
@@ -55,19 +38,6 @@ export type RepoItem = {
   productionDeploymentId: string | null;
 };
 
-const formatRelativeTime = (dateString: string) => {
-  const date = new Date(dateString);
-  const now = Date.now();
-  const diffSeconds = Math.floor((now - date.getTime()) / 1000);
-  if (diffSeconds < 60) return "just now";
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
-};
-
 const AdorableLogo = () => <KanamLogo className="size-5" />;
 
 /* ------------------------------------------------------------------ */
@@ -79,23 +49,19 @@ export function RepoSidebar({
   selectedRepoId,
   onSelectProject,
   onCreateRepo,
-  onSetProductionDomain,
-  onPromoteDeployment,
   collapsible = "icon",
 }: {
   repos: RepoItem[];
   selectedRepoId: string | null;
   onSelectProject: (repoId: string) => void;
   onCreateRepo: () => Promise<void>;
-  onSetProductionDomain: (repoId: string, domain: string) => Promise<void>;
-  onPromoteDeployment: (repoId: string, deploymentId: string) => Promise<void>;
   collapsible?: "icon" | "offcanvas";
 }) {
-  const [tab, setTab] = React.useState<"threads" | "deployments">("threads");
+  const [tab, setTab] = React.useState<"threads" | "export">("threads");
   const [creatingRepo, setCreatingRepo] = React.useState(false);
   const { open, setOpen } = useSidebar();
 
-  const onTabClick = (nextTab: "threads" | "deployments") => {
+  const onTabClick = (nextTab: "threads" | "export") => {
     if (open && tab === nextTab) {
       setOpen(false);
       return;
@@ -135,16 +101,16 @@ export function RepoSidebar({
           </button>
           <button
             type="button"
-            onClick={() => onTabClick("deployments")}
-            title="Deployments"
-            aria-label="Deployments"
+            onClick={() => onTabClick("export")}
+            title="Export"
+            aria-label="Export"
             className={`inline-flex size-7 items-center justify-center rounded-md transition-colors ${
-              open && tab === "deployments"
+              open && tab === "export"
                 ? "bg-muted text-foreground"
                 : "text-muted-foreground/60 hover:text-foreground"
             }`}
           >
-            <RocketIcon className="size-[18px]" />
+            <PackageIcon className="size-[18px]" />
           </button>
         </div>
 
@@ -181,11 +147,7 @@ export function RepoSidebar({
                   onSelectProject={onSelectProject}
                 />
               ) : (
-                <DeploymentsList
-                  repo={selectedRepo}
-                  onSetProductionDomain={onSetProductionDomain}
-                  onPromoteDeployment={onPromoteDeployment}
-                />
+                <ExportList repo={selectedRepo} />
               )}
             </div>
           </div>
@@ -239,21 +201,12 @@ function ProjectsList({
   );
 }
 
+
 /* ------------------------------------------------------------------ */
-/*  Deployments tab                                                    */
+/*  Export tab                                                         */
 /* ------------------------------------------------------------------ */
 
-function DeploymentsList({
-  repo,
-  onSetProductionDomain,
-  onPromoteDeployment,
-}: {
-  repo: RepoItem | null;
-  onSetProductionDomain: (repoId: string, domain: string) => Promise<void>;
-  onPromoteDeployment: (repoId: string, deploymentId: string) => Promise<void>;
-}) {
-  const [isPromotingId, setIsPromotingId] = React.useState<string | null>(null);
-
+function ExportList({ repo }: { repo: RepoItem | null }) {
   if (!repo) {
     return (
       <div className="px-3 py-6 text-center text-xs text-muted-foreground/40">
@@ -262,242 +215,13 @@ function DeploymentsList({
     );
   }
 
-  const items = repo.deployments;
-
-  const handlePromote = async (deploymentId: string) => {
-    setIsPromotingId(deploymentId);
-    try {
-      await onPromoteDeployment(repo.id, deploymentId);
-    } catch {
-      // visible from state
-    } finally {
-      setIsPromotingId(null);
-    }
-  };
-
   return (
-    <div className="space-y-4">
-      {/* Domain section */}
-      <div>
-        <div className="flex items-center justify-between px-3 pb-1">
-          <span className="text-[11px] font-medium tracking-wider text-muted-foreground/50 uppercase">
-            Domain
-          </span>
-          <ConfigureDomainDialog
-            repo={repo}
-            onSetProductionDomain={onSetProductionDomain}
-          />
-        </div>
-        <div className="px-3">
-          {repo.productionDomain ? (
-            <a
-              href={`https://${repo.productionDomain}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 rounded-md py-1.5 text-[13px] text-foreground transition-colors hover:underline"
-            >
-              <GlobeIcon className="size-3.5 shrink-0 text-emerald-500" />
-              <span className="truncate">{repo.productionDomain}</span>
-            </a>
-          ) : (
-            <p className="py-1.5 text-[13px] text-muted-foreground/30">
-              Not configured
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Deployments section */}
-      <div>
-        <div className="px-3 pb-1">
-          <span className="text-[11px] font-medium tracking-wider text-muted-foreground/50 uppercase">
-            Deployments
-          </span>
-        </div>
-
-        {items.length === 0 ? (
-          <div className="px-3 py-2 text-xs text-muted-foreground/30">
-            No deployments yet
-          </div>
-        ) : (
-          <div className="space-y-px">
-            {items.map((entry) => {
-              const isProduction =
-                !!entry.deploymentId &&
-                repo.productionDeploymentId === entry.deploymentId;
-              const isPromoting = isPromotingId === entry.deploymentId;
-              const canPromote =
-                !!entry.deploymentId &&
-                !!repo.productionDomain &&
-                entry.state === "live" &&
-                !isProduction;
-
-              return (
-                <a
-                  key={`${entry.commitSha}-${entry.url}`}
-                  href={entry.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-start gap-2 rounded-md px-3 py-1.5 transition-colors hover:bg-accent"
-                >
-                  {/* Status dot — vertically centered with first line */}
-                  <span className="mt-[5px] flex size-3.5 shrink-0 items-center justify-center">
-                    {entry.state === "deploying" ? (
-                      <Loader2Icon className="size-3 animate-spin text-amber-400" />
-                    ) : entry.state === "live" ? (
-                      <span className="size-[7px] rounded-full bg-emerald-500" />
-                    ) : entry.state === "failed" ? (
-                      <span className="size-[7px] rounded-full bg-red-500" />
-                    ) : (
-                      <span className="size-[7px] rounded-full bg-muted-foreground/25" />
-                    )}
-                  </span>
-
-                  {/* Text */}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] leading-snug text-foreground">
-                      {entry.commitMessage}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground/60">
-                      <span>{formatRelativeTime(entry.commitDate)}</span>
-                      {isProduction && (
-                        <>
-                          <span className="opacity-40">·</span>
-                          <span className="font-medium text-emerald-400">
-                            prod
-                          </span>
-                        </>
-                      )}
-                      {canPromote && (
-                        <>
-                          <span className="opacity-40">·</span>
-                          <button
-                            type="button"
-                            className="text-[11px] text-muted-foreground/60 underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-50"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (!entry.deploymentId) return;
-                              void handlePromote(entry.deploymentId);
-                            }}
-                            disabled={isPromoting}
-                          >
-                            {isPromoting ? "promoting…" : "promote"}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-        )}
-      </div>
+    <div className="space-y-3 px-3 py-2">
+      <p className="text-[13px] leading-relaxed text-muted-foreground/70">
+        Take your project with you. Download the source or push it to a new
+        GitHub repository.
+      </p>
+      <ExportDialog repoId={repo.id} />
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Domain config dialog                                               */
-/* ------------------------------------------------------------------ */
-
-function ConfigureDomainDialog({
-  repo,
-  onSetProductionDomain,
-}: {
-  repo: RepoItem;
-  onSetProductionDomain: (repoId: string, domain: string) => Promise<void>;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [domainInput, setDomainInput] = React.useState("");
-  const [isSaving, setIsSaving] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (open) {
-      setDomainInput(repo.productionDomain ?? "");
-      setError(null);
-    }
-  }, [open, repo.productionDomain]);
-
-  const handleSave = async () => {
-    const nextDomain = domainInput.trim().toLowerCase();
-    if (!nextDomain.endsWith(".style.dev")) {
-      setError("Domain must end in .style.dev");
-      return;
-    }
-
-    setError(null);
-    setIsSaving(true);
-    try {
-      await onSetProductionDomain(repo.id, nextDomain);
-      setOpen(false);
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Failed to save domain",
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex size-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:text-foreground"
-          title="Configure production domain"
-        >
-          <SettingsIcon className="size-3" />
-        </button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Production Domain</DialogTitle>
-          <DialogDescription>
-            Set a custom <span className="font-medium">.style.dev</span> domain
-            for your production deployments.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-1.5">
-          <Input
-            value={domainInput}
-            onChange={(event) => {
-              setDomainInput(event.target.value);
-              setError(null);
-            }}
-            placeholder="my-app.style.dev"
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void handleSave();
-            }}
-          />
-          {error && <p className="text-[13px] text-destructive">{error}</p>}
-        </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setOpen(false)}
-            disabled={isSaving}
-          >
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2Icon className="size-4 animate-spin" />
-                Saving…
-              </>
-            ) : (
-              "Save"
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
