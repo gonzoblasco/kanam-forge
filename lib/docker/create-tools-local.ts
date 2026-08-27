@@ -95,7 +95,7 @@ export const createTools = (vm: Vm, options?: CreateToolsOptions) => {
 
   const bashTool = tool({
     description:
-      "Run a bash command inside the Adorable VM and return its output.",
+      "Run a bash command inside the sandbox and return its output.",
     inputSchema: z.object({
       command: z.string().min(1).describe("The bash command to execute."),
     }),
@@ -106,7 +106,7 @@ export const createTools = (vm: Vm, options?: CreateToolsOptions) => {
 
   const readFileTool = tool({
     description:
-      "Read the content of a file in the Adorable VM. Input is the file path relative to the workdir.",
+      "Read the content of a file in the sandbox. Input is the file path relative to the workdir.",
     inputSchema: z
       .object({
         file: z.string().min(1).describe("The path of the file to read."),
@@ -125,7 +125,7 @@ export const createTools = (vm: Vm, options?: CreateToolsOptions) => {
 
   const writeFileTool = tool({
     description:
-      "Write content to a file in the Adorable VM. Input is the file path relative to the workdir and the content to write.",
+      "Write content to a file in the sandbox. Input is the file path relative to the workdir and the content to write.",
     inputSchema: z
       .object({
         file: z.string().min(1).describe("The path of the file to write."),

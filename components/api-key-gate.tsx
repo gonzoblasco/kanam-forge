@@ -126,7 +126,7 @@ function ApiKeySetupScreen({ onSaved }: { onSaved: () => void }) {
               Add your API key
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Adorable needs an LLM API key to work. Your key is stored securely
+              Kanam Forge needs an LLM API key to work. Your key is stored securely
               in an HTTP-only cookie and never shared.
             </p>
           </div>
