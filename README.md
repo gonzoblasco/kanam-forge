@@ -42,13 +42,13 @@ npm install
 
 ### 2. Configure environment
 
-Next.js runs from the `adorable/` workspace, so the `.env.local` must live there:
+Copy the example and edit it. For local use with Ollama:
 
 ```bash
-cp .env.example adorable/.env.local
+cp .env.example .env.local
 ```
 
-Then edit `adorable/.env.local`. For local use with Ollama:
+Then edit `.env.local`:
 
 ```bash
 LLM_PROVIDER=ollama
@@ -76,7 +76,7 @@ Describe what you want in the chat. Kanam Forge provisions a Docker container pe
 
 ## Troubleshooting
 
-- **"No API key configured"** - make sure `adorable/.env.local` exists with `LLM_PROVIDER=ollama` (Ollama needs no key).
+- **"No API key configured"** - make sure `.env.local` exists with `LLM_PROVIDER=ollama` (Ollama needs no key).
 - **"Repository metadata not found"** - the project container was removed; create a new project.
 - **Preview shows the orchestrator home instead of the project** - the project preview is a separate port (dynamic), shown in the UI. The agent is instructed not to report the orchestrator port (3000).
 
