@@ -118,6 +118,13 @@ export function RepoWorkspaceShell({
     loadRepos();
   }, [loadRepos, repoId]);
 
+  // Ensure the dev server is running when a project is opened, so the
+  // preview is ready without asking the agent to start it manually.
+  useEffect(() => {
+    if (!repoId) return;
+    void fetch(`/api/repos/${repoId}/start`, { method: "POST" }).catch(() => {});
+  }, [repoId]);
+
   useEffect(() => {
     if (!threadIsRunning && !hasDeployingRepo) return;
     const interval = window.setInterval(() => {
