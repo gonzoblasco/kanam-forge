@@ -13,6 +13,7 @@ RUN apk add --no-cache \
     build-base \
     python3 \
     py3-pip \
+    socat \
     && npm install -g npm@latest
 
 # Create workspace dir
@@ -23,4 +24,8 @@ ENV HOSTNAME=0.0.0.0
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "echo 'Kanam Forge sandbox ready' && tail -f /dev/null"]
+# Keep the container alive and proxy localhost:11434 -> host.docker.internal:11434
+# so apps that talk to Ollama via localhost work inside the container.
+# host.docker.internal is provided by Docker Desktop (macOS/Windows) via
+# --add-host=host.docker.internal:host-gateway.
+CMD ["sh", "-c", "(socat TCP-LISTEN:11434,fork,reuseaddr TCP:host.docker.internal:11434 &) && echo 'Kanam Forge sandbox ready' && tail -f /dev/null"]

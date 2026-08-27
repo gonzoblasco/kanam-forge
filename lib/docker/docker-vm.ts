@@ -116,6 +116,7 @@ export const createVmForRepo = async (repoId: string): Promise<VmRuntimeMetadata
   run(
     `docker run -d --name ${name} ` +
       `-v ${ws}:/workspace ` +
+      `--add-host=host.docker.internal:host-gateway ` +
       `-p 3000 ` +
       `-p 3010 ` +
       `-p 3020 ` +
@@ -183,9 +184,35 @@ export const removeVm = (repoId: string) => {
 
 /**
  * Reconnect to an existing container (chat/route.ts).
+ * If the container does not exist (e.g. after a sandbox image rebuild),
+ * it is recreated with the current sandbox image.
  */
 export const refVm = (repoId: string) => {
-  return new DockerVm(containerName(repoId), workspaceDir(repoId));
+  const name = containerName(repoId);
+  const ws = workspaceDir(repoId);
+
+  // Recreate the container if it's missing (e.g. after image rebuild)
+  const exists = (() => {
+    try {
+      run(`docker inspect ${name} >/dev/null 2>&1 && echo ok`);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+  if (!exists) {
+    run(
+      `docker run -d --name ${name} ` +
+        `-v ${ws}:/workspace ` +
+        `--add-host=host.docker.internal:host-gateway ` +
+        `-p 3000 ` +
+        `-p 3010 ` +
+        `-p 3020 ` +
+        `${SANDBOX_IMAGE}`,
+    );
+  }
+
+  return new DockerVm(name, ws);
 };
 
 class DockerVm {

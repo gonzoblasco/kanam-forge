@@ -228,10 +228,10 @@ export const HomeWelcome: FC = () => {
       <Dialog open={githubDialogOpen} onOpenChange={setGithubDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Use GitHub Repo</DialogTitle>
+            <DialogTitle>Import from GitHub</DialogTitle>
             <DialogDescription>
-              Enter a repository in owner/repo format. If you haven't installed
-              the GitHub App yet, install it first.
+              Enter a public repository in owner/repo format. It will be cloned
+              into a new project and you can start working on it.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -252,14 +252,10 @@ export const HomeWelcome: FC = () => {
             {githubRepoError && (
               <p className="text-[13px] text-destructive">{githubRepoError}</p>
             )}
-            <a
-              href="https://dash.freestyle.sh/"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-block text-xs text-muted-foreground underline-offset-2 hover:underline"
-            >
-              Install GitHub App (Dashboard → Git → Sync)
-            </a>
+            <p className="text-xs text-muted-foreground/60">
+              The repository must be public. Private repos are not supported
+              yet.
+            </p>
           </div>
           <DialogFooter>
             <Button

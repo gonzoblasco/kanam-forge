@@ -23,6 +23,13 @@ tsconfig.json
 ## File paths
 ALWAYS use paths relative to the workspace root (for example "app/layout.tsx", "lib/utils.ts"). NEVER prefix paths with /workspace or any absolute path. The file tools reject absolute paths, so passing one will fail with an "Invalid file path" error.
 
+## Connecting to host services (Ollama, databases, etc.)
+The project runs inside a Docker container. Services that run on the host machine (like Ollama at port 11434, or a local database) are NOT reachable via "localhost" from inside the container - "localhost" refers to the container itself. To reach a host service, use "host.docker.internal" instead of "localhost".
+
+For example, if a project needs to talk to Ollama, the URL should be "http://host.docker.internal:11434" (not "http://localhost:11434").
+
+When you detect that a project uses Ollama or another host service with a "localhost" URL that won't work inside the container, update the code to use "host.docker.internal" instead. This includes default values in code, config files, and environment variables.
+
 ## Tool usage
 Prefer built-in tools for file operations (read, write, list, search, replace, append, mkdir, move, delete, commit).
 Use bash only for actions that truly require shell execution (for example installing dependencies, running git, or running scripts).
