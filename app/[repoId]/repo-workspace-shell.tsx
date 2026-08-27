@@ -11,6 +11,7 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ChevronLeftIcon,
+  ChevronUpIcon,
   CodeIcon,
   Loader2Icon,
   MonitorIcon,
@@ -229,18 +230,13 @@ export function RepoWorkspaceShell({
   const showWorkspacePanel = Boolean(repoId);
   const isMobile = useIsMobile();
   const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
+  const [chatWidth, setChatWidth] = useState(40); // % of chat panel width
+  const isDraggingRef = useRef(false);
 
   // Reset to chat view when navigating away
   useEffect(() => {
     if (!repoId) setMobileView("chat");
   }, [repoId]);
-
-  // On mobile, compute which panel to show
-  const gridColumns = (() => {
-    if (!showWorkspacePanel) return "1fr 0fr";
-    if (isMobile) return mobileView === "chat" ? "1fr 0fr" : "0fr 1fr";
-    return "2fr 3fr";
-  })();
 
   const conversationsContextValue = useMemo(
     () => ({
@@ -321,7 +317,13 @@ export function RepoWorkspaceShell({
                 isMobile ? "flex h-11 items-center" : "grid h-11",
               )}
               style={
-                isMobile ? undefined : { gridTemplateColumns: gridColumns }
+                isMobile
+                  ? undefined
+                  : {
+                      gridTemplateColumns: showWorkspacePanel
+                        ? `${chatWidth}% 4px ${100 - chatWidth}%`
+                        : "1fr 0fr",
+                    }
               }
             >
               {/* Left: back button */}
@@ -411,7 +413,15 @@ export function RepoWorkspaceShell({
               !isMobile &&
                 "transition-[grid-template-columns] duration-500 ease-in-out",
             )}
-            style={isMobile ? undefined : { gridTemplateColumns: gridColumns }}
+            style={
+              isMobile
+                ? undefined
+                : {
+                    gridTemplateColumns: showWorkspacePanel
+                      ? `${chatWidth}% 4px ${100 - chatWidth}%`
+                      : "1fr 0fr",
+                  }
+            }
           >
             <div
               className={cn(
@@ -421,6 +431,38 @@ export function RepoWorkspaceShell({
             >
               {children}
             </div>
+
+            {/* Draggable divider between chat and viewport */}
+            {!isMobile && showWorkspacePanel && (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize chat panel"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  isDraggingRef.current = true;
+                  const container = e.currentTarget.parentElement;
+                  if (!container) return;
+                  const rect = container.getBoundingClientRect();
+                  const onMove = (ev: MouseEvent) => {
+                    if (!isDraggingRef.current) return;
+                    const pct = ((ev.clientX - rect.left) / rect.width) * 100;
+                    setChatWidth(Math.min(70, Math.max(25, pct)));
+                  };
+                  const onUp = () => {
+                    isDraggingRef.current = false;
+                    window.removeEventListener("mousemove", onMove);
+                    window.removeEventListener("mouseup", onUp);
+                  };
+                  window.addEventListener("mousemove", onMove);
+                  window.addEventListener("mouseup", onUp);
+                }}
+                className="group relative z-10 w-1 cursor-col-resize bg-border transition-colors hover:bg-ring/60 active:bg-ring"
+              >
+                <div className="absolute inset-y-0 -left-1 -right-1" />
+              </div>
+            )}
+
             <div
               className={cn(
                 "min-w-0 overflow-hidden",
@@ -537,6 +579,7 @@ function AppPreview({
   const [loadedTerminals, setLoadedTerminals] = useState<Set<string>>(
     new Set(),
   );
+  const [terminalCollapsed, setTerminalCollapsed] = useState(true);
 
   const markTerminalLoaded = useCallback((id: string) => {
     setLoadedTerminals((prev) => new Set(prev).add(id));
@@ -586,7 +629,12 @@ function AppPreview({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="relative flex h-[70%] min-h-0 flex-col">
+      <div
+        className={cn(
+          "relative flex min-h-0 flex-col transition-[height] duration-300 ease-in-out",
+          terminalCollapsed ? "flex-1" : "h-[70%]",
+        )}
+      >
         <div className="relative min-h-0 flex-1 bg-muted/30">
           {!iframeLoaded && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-background">
@@ -610,43 +658,65 @@ function AppPreview({
         </div>
       </div>
 
-      <div className="flex h-[30%] min-h-0 flex-col">
-        <div className="flex shrink-0 items-center gap-0 border-y bg-[rgb(43,43,43)] px-1">
-          {allTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`group flex items-center gap-1 px-2 py-1.5 text-xs transition-colors ${
-                activeTab === tab.id
-                  ? "border-b-2 border-foreground bg-[rgb(43,43,43)] text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <span>{tab.label}</span>
-              {tab.closable && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeTerminal(tab.id);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
+      {/* Terminal bar - always visible, collapsible body */}
+      <div
+        className={cn(
+          "flex shrink-0 flex-col border-t bg-[rgb(43,43,43)] transition-[height] duration-300 ease-in-out",
+          terminalCollapsed ? "h-9" : "h-[30%]",
+        )}
+      >
+        <div className="flex shrink-0 items-center gap-0 px-1">
+          <button
+            type="button"
+            onClick={() => setTerminalCollapsed((v) => !v)}
+            className="flex items-center gap-1 rounded px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            title={terminalCollapsed ? "Expand terminal" : "Collapse terminal"}
+          >
+            <ChevronUpIcon
+              className={cn(
+                "size-3.5 transition-transform duration-300",
+                terminalCollapsed ? "rotate-180" : "",
+              )}
+            />
+            <span>Terminal</span>
+          </button>
+
+          {!terminalCollapsed &&
+            allTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`group flex items-center gap-1 px-2 py-1.5 text-xs transition-colors ${
+                  activeTab === tab.id
+                    ? "border-b-2 border-foreground text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>{tab.label}</span>
+                {tab.closable && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
                       e.stopPropagation();
                       closeTerminal(tab.id);
-                    }
-                  }}
-                  className="ml-0.5 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted"
-                >
-                  <XIcon className="size-3" />
-                </span>
-              )}
-            </button>
-          ))}
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.stopPropagation();
+                        closeTerminal(tab.id);
+                      }
+                    }}
+                    className="ml-0.5 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted"
+                  >
+                    <XIcon className="size-3" />
+                  </span>
+                )}
+              </button>
+            ))}
 
-          {metadata.additionalTerminalsUrl && (
+          {!terminalCollapsed && metadata.additionalTerminalsUrl && (
             <button
               type="button"
               onClick={addTerminal}
@@ -658,25 +728,27 @@ function AppPreview({
           )}
         </div>
 
-        <div className="relative min-h-0 flex-1 bg-[rgb(30,30,30)]">
-          {allTabs.map((tab) => (
-            <iframe
-              key={tab.id}
-              src={tab.url}
-              className={cn(
-                "absolute inset-0 h-full w-full transition-opacity duration-500",
-                loadedTerminals.has(tab.id) ? "opacity-100" : "opacity-0",
-              )}
-              style={{ display: activeTab === tab.id ? "block" : "none" }}
-              onLoad={() => markTerminalLoaded(tab.id)}
-            />
-          ))}
-          {allTabs.length === 0 && (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No terminal selected
-            </div>
-          )}
-        </div>
+        {!terminalCollapsed && (
+          <div className="relative min-h-0 flex-1 bg-[rgb(30,30,30)]">
+            {allTabs.map((tab) => (
+              <iframe
+                key={tab.id}
+                src={tab.url}
+                className={cn(
+                  "absolute inset-0 h-full w-full transition-opacity duration-500",
+                  loadedTerminals.has(tab.id) ? "opacity-100" : "opacity-0",
+                )}
+                style={{ display: activeTab === tab.id ? "block" : "none" }}
+                onLoad={() => markTerminalLoaded(tab.id)}
+              />
+            ))}
+            {allTabs.length === 0 && (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No terminal selected
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
