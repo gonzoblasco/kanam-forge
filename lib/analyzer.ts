@@ -22,7 +22,7 @@ const analysisSchema = z.object({
 
 export type AIAnalysis = z.infer<typeof analysisSchema>;
 
-const DEFAULT_OLLAMA_URL = "http://host.docker.internal:11434";
+const DEFAULT_OLLAMA_URL = "http://localhost:11434";
 const DEFAULT_OLLAMA_MODEL = "deepseek-v4-flash:cloud";
 
 const SYSTEM_PROMPT = `Sos un analizador de proyectos. Devolvé SOLO JSON válido, sin markdown, sin explicaciones.
@@ -56,7 +56,11 @@ export async function analyzeDescription(
   description: string,
   options: AnalyzeOptions = {},
 ): Promise<AIAnalysis> {
-  const url = options.url ?? DEFAULT_OLLAMA_URL;
+  const url =
+    options.url ??
+    process.env.OLLAMA_BASE_URL ??
+    process.env.OLLAMA_URL ??
+    DEFAULT_OLLAMA_URL;
   const model = options.model ?? DEFAULT_OLLAMA_MODEL;
 
   try {

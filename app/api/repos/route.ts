@@ -16,6 +16,7 @@ import {
   readRepoMetadata,
   writeRepoMetadata,
 } from "@/lib/docker/repo-storage-local";
+import { analyzeDescription, type AIAnalysis } from "@/lib/analyzer";
 
 const KANAM_FORGE_DATA_DIR =
   process.env.KANAM_FORGE_DATA_DIR ?? join(homedir(), ".kanam-forge", "projects");
@@ -105,6 +106,20 @@ export async function POST(req: Request) {
     requestedName ??
     (githubRepoName ? githubRepoName.split("/").pop() ?? githubRepoName : "Project");
 
+  // If not importing from GitHub, run the analyzer on the project description
+  // to personalize the scaffold. analyzeDescription has an internal try/catch
+  // that returns a default analysis if Ollama is unavailable.
+  let analysis: AIAnalysis | undefined;
+  if (!githubRepoName) {
+    const description = (requestedName ?? requestedConversationTitle ?? "").trim();
+    if (description) {
+      analysis = await analyzeDescription(description);
+      if (!analysis || analysis.tables.length === 0) {
+        console.warn("[analyzer] returned default analysis");
+      }
+    }
+  }
+
   // Create the container for this project
   const vm = await createVmForRepo(repoId);
 
@@ -113,7 +128,7 @@ export async function POST(req: Request) {
     if (githubRepoName) {
       await importFromGithub(repoId, githubRepoName);
     } else {
-      await bootstrapProject(repoId);
+      await bootstrapProject(repoId, analysis);
     }
   } catch (error) {
     console.error("project bootstrap failed:", error);
@@ -123,6 +138,7 @@ export async function POST(req: Request) {
     version: 2,
     sourceRepoId: repoId,
     ...(inferredName ? { name: inferredName } : {}),
+    ...(analysis ? { analysis } : {}),
     vm,
     conversations: [],
     deployments: [],

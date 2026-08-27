@@ -21,6 +21,7 @@ import {
 } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import type { AIAnalysis } from "@/lib/analyzer";
 
 const KANAM_FORGE_DATA_DIR =
   process.env.KANAM_FORGE_DATA_DIR ?? join(homedir(), ".kanam-forge", "projects");
@@ -56,6 +57,7 @@ export type RepoMetadata = {
   version: 2;
   sourceRepoId: string;
   name?: string;
+  analysis?: AIAnalysis;
   vm: RepoVmMetadata;
   conversations: RepoConversationSummary[];
   deployments: RepoDeploymentSummary[];
