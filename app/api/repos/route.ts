@@ -7,6 +7,7 @@ import {
   bootstrapProject,
   createVmForRepo,
   ensureSandboxImage,
+  importFromGithub,
   isDockerAvailable,
 } from "@/lib/docker/docker-vm";
 import {
@@ -71,16 +72,20 @@ export async function POST(req: Request) {
 
   let requestedName: string | undefined;
   let requestedConversationTitle: string | undefined;
+  let githubRepoName: string | undefined;
   try {
     const payload = (await req.json()) as {
       name?: string;
       conversationTitle?: string;
+      githubRepoName?: string;
     };
     requestedName = payload?.name?.trim() || undefined;
     requestedConversationTitle = payload?.conversationTitle?.trim() || undefined;
+    githubRepoName = payload?.githubRepoName?.trim() || undefined;
   } catch {
     requestedName = undefined;
     requestedConversationTitle = undefined;
+    githubRepoName = undefined;
   }
 
   // Build the sandbox image once (idempotent)
@@ -96,22 +101,28 @@ export async function POST(req: Request) {
   }
 
   const repoId = randomUUID();
-  const inferredName = requestedName ?? "Project";
+  const inferredName =
+    requestedName ??
+    (githubRepoName ? githubRepoName.split("/").pop() ?? githubRepoName : "Project");
 
   // Create the container for this project
   const vm = await createVmForRepo(repoId);
 
-  // Provision the workspace + install deps + start dev server (async, best effort)
+  // Provision the workspace: clone from GitHub if requested, else scaffold
   try {
-    await bootstrapProject(repoId);
+    if (githubRepoName) {
+      await importFromGithub(repoId, githubRepoName);
+    } else {
+      await bootstrapProject(repoId);
+    }
   } catch (error) {
-    console.error("bootstrapProject failed:", error);
+    console.error("project bootstrap failed:", error);
   }
 
   const initialMetadata: RepoMetadata = {
     version: 2,
     sourceRepoId: repoId,
-    ...(requestedName ? { name: requestedName } : {}),
+    ...(inferredName ? { name: inferredName } : {}),
     vm,
     conversations: [],
     deployments: [],

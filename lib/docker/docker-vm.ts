@@ -234,3 +234,41 @@ class DockerVm {
 }
 
 export type Vm = DockerVm;
+
+/**
+ * Import a project from a GitHub repository (owner/repo).
+ * Clones the repo into the workspace, installs deps, and starts the dev
+ * server. Falls back to the empty scaffold if the clone fails.
+ */
+export const importFromGithub = async (
+  repoId: string,
+  githubRepoName: string,
+) => {
+  const ws = workspaceDir(repoId);
+  const name = containerName(repoId);
+  const vm = new DockerVm(name, ws);
+
+  // 1. Clone the repo into the workspace (shallow, single branch)
+  const clone = (await vm.exec({
+    command: `git clone --depth 1 https://github.com/${githubRepoName}.git .`,
+  })) as { ok: boolean };
+  if (!clone.ok) {
+    throw new Error(
+      `Failed to clone ${githubRepoName}. Check that the repository exists and is public.`,
+    );
+  }
+
+  // 2. npm install (may take a while)
+  await vm.exec({ command: "npm install" });
+
+  // 3. Ensure it's a git repo with an initial commit (so commitTool works)
+  await vm.exec({
+    command:
+      "git init -q && git config user.email forge@kanam.local && git config user.name 'Kanam Forge' && git add -A && (git commit -q -m 'Initial import' || true)",
+  });
+
+  // 4. Start the dev server in the background (detached)
+  run(
+    `docker exec -d ${name} sh -c "cd /workspace && npm run dev > /workspace/.dev-server.log 2>&1"`,
+  );
+};
