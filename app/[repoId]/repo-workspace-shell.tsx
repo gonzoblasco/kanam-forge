@@ -7,9 +7,11 @@ import type { RepoDeployment, RepoItem, RepoVmInfo } from "@/lib/repo-types";
 import { ProjectConversationsProvider } from "@/lib/project-conversations-context";
 import { ReposProvider } from "@/lib/repos-context";
 import { ExportDialog } from "@/components/assistant-ui/export-dialog";
+import { CodeReader } from "@/components/assistant-ui/code-reader";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  BookOpenIcon,
   ChevronLeftIcon,
   ChevronUpIcon,
   CodeIcon,
@@ -238,6 +240,7 @@ export function RepoWorkspaceShell({
   const isMobile = useIsMobile();
   const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
   const [chatWidth, setChatWidth] = useState(40); // % of chat panel width
+  const [readerOpen, setReaderOpen] = useState(false);
   const isDraggingRef = useRef(false);
 
   // Reset to chat view when navigating away
@@ -291,9 +294,9 @@ export function RepoWorkspaceShell({
                     }
               }
             >
-              {/* Left: back button */}
+              {/* Left: back button + project name */}
               {(!isMobile || mobileView === "chat") && (
-                <div className="flex items-center px-3">
+                <div className="flex items-center gap-2 px-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -321,6 +324,11 @@ export function RepoWorkspaceShell({
                         : "All Apps"}
                     </span>
                   </button>
+                  {selectedRepo && (
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {selectedRepo.name}
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -343,7 +351,7 @@ export function RepoWorkspaceShell({
                 </div>
               )}
 
-              {/* Right: browser controls + publish (desktop only) */}
+              {/* Right: browser controls + export (desktop only) */}
               {!isMobile && (
                 <div
                   className={cn(
@@ -354,11 +362,23 @@ export function RepoWorkspaceShell({
                   )}
                 >
                   {showWorkspacePanel && selectedRepo.vm?.previewUrl && (
-                    <BrowserControls
-                      previewUrl={selectedRepo.vm.previewUrl}
-                      iframeRef={iframeRef}
-                      repo={selectedRepo}
-                    />
+                    <>
+                      <BrowserControls
+                        previewUrl={selectedRepo.vm.previewUrl}
+                        iframeRef={iframeRef}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setReaderOpen(true)}
+                        className="ml-auto inline-flex size-8 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                        title="Code reader"
+                      >
+                        <BookOpenIcon className="size-4" />
+                      </button>
+                      <div className="ml-1">
+                        <ExportDialog repoId={selectedRepo.id} />
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -462,6 +482,15 @@ export function RepoWorkspaceShell({
             </button>
           )}
         </div>
+
+        {/* Code reader */}
+        {repoId && (
+          <CodeReader
+            repoId={repoId}
+            open={readerOpen}
+            onOpenChange={setReaderOpen}
+          />
+        )}
       </ProjectConversationsProvider>
     </ReposProvider>
   );
@@ -716,11 +745,9 @@ function AppPreview({
 function BrowserControls({
   previewUrl,
   iframeRef,
-  repo,
 }: {
   previewUrl: string;
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
-  repo: RepoItem;
 }) {
   const [urlValue, setUrlValue] = useState(() => {
     try {
@@ -814,9 +841,6 @@ function BrowserControls({
           aria-label="URL path"
         />
       </form>
-      <div className="ml-1.5">
-        <ExportDialog repoId={repo.id} />
-      </div>
     </>
   );
 }
