@@ -14,6 +14,7 @@ import { execSync, spawnSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import type { AIAnalysis } from "@/lib/analyzer";
 import {
   readRepoMetadata,
   writeRepoMetadata,
@@ -155,13 +156,13 @@ export const createVmForRepo = async (repoId: string): Promise<VmRuntimeMetadata
  * Provision the workspace (scaffold a Next.js app if empty), install deps,
  * and start the dev server inside the container.
  */
-export const bootstrapProject = async (repoId: string) => {
+export const bootstrapProject = async (repoId: string, analysis?: AIAnalysis) => {
   const ws = workspaceDir(repoId);
   const name = containerName(repoId);
 
   // 1. Provision the Next.js scaffold if the workspace is empty
   const { provisionWorkspace } = await import("./provision");
-  await provisionWorkspace(repoId);
+  await provisionWorkspace(repoId, analysis);
 
   // 2. npm install (may take a while)
   await new DockerVm(name, ws).exec({ command: "npm install" });
