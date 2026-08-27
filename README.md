@@ -28,13 +28,57 @@ MVP (local Docker, single user). Fase 1: decoupling Freestyle cloud sandbox → 
 
 ## Getting Started
 
+### Prerequisites
+
+- **Node.js 20+** and npm
+- **Docker** (Desktop on macOS, or any daemon) - required for the sandbox
+- **Ollama** running locally (for the default local LLM provider)
+
+### 1. Install dependencies
+
 ```bash
-cp .env.example .env.local  # add your API keys (or use the in-app settings dialog)
 npm install
+```
+
+### 2. Configure environment
+
+Next.js runs from the `adorable/` workspace, so the `.env.local` must live there:
+
+```bash
+cp .env.example adorable/.env.local
+```
+
+Then edit `adorable/.env.local`. For local use with Ollama:
+
+```bash
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434/api   # note the /api suffix
+OLLAMA_MODEL=deepseek-v4-flash:cloud
+```
+
+> **Note:** do NOT set `KANAM_FORGE_DATA_DIR` to a literal `~` path - Node does not expand it and `existsSync` will fail. Leave it unset to use the default `~/.kanam-forge/projects`.
+
+### 3. Start Docker
+
+Make sure the Docker daemon is running (e.g. `open -a Docker` on macOS). The sandbox image is built automatically on first project creation.
+
+### 4. Run the dev server
+
+```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to start building.
+
+### 5. Create a project
+
+Describe what you want in the chat. Kanam Forge provisions a Docker container per project, installs deps, and starts a live preview. The agent writes code, runs checks, and commits changes to the project's own git repo.
+
+## Troubleshooting
+
+- **"No API key configured"** - make sure `adorable/.env.local` exists with `LLM_PROVIDER=ollama` (Ollama needs no key).
+- **"Repository metadata not found"** - the project container was removed; create a new project.
+- **Preview shows the orchestrator home instead of the project** - the project preview is a separate port (dynamic), shown in the UI. The agent is instructed not to report the orchestrator port (3000).
 
 ## Upstream
 
