@@ -14,5 +14,9 @@
     "@assistant-ui/store": "0.2.1",
     "@assistant-ui/core": "0.1.1",
     "@assistant-ui/tap": "0.5.1"
+  },
+  "allowScripts": {
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.12.2": true
   }
 }
