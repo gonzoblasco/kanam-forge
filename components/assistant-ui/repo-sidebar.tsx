@@ -2,7 +2,26 @@ import * as React from "react";
 import { Sidebar, useSidebar } from "@/components/ui/sidebar";
 import { KanamLogo } from "@/components/kanam-logo";
 import { ExportDialog } from "@/components/assistant-ui/export-dialog";
-import { FolderIcon, PackageIcon, PlusIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  FolderIcon,
+  Loader2Icon,
+  MoreHorizontalIcon,
+  PackageIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+} from "lucide-react";
 
 export type RepoDeployment = {
   commitSha: string;
@@ -183,21 +202,227 @@ function ProjectsList({
       {repos.map((repo) => {
         const isActive = selectedRepoId === repo.id;
         return (
-          <button
+          <div
             key={repo.id}
-            type="button"
-            onClick={() => onSelectProject(repo.id)}
-            className={`flex w-full items-center rounded-md px-3 py-1.5 text-left text-[13px] transition-colors ${
+            className={`group flex items-center rounded-md transition-colors ${
               isActive
                 ? "bg-accent text-accent-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             }`}
           >
-            <span className="truncate">{repo.name}</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => onSelectProject(repo.id)}
+              className="flex min-w-0 flex-1 items-center rounded-md px-3 py-1.5 text-left text-[13px]"
+            >
+              <span className="truncate">{repo.name}</span>
+            </button>
+            <ProjectActions
+              repoId={repo.id}
+              repoName={repo.name}
+              onChanged={() => onSelectProject(repo.id)}
+            />
+          </div>
         );
       })}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Project actions (rename / delete)                                  */
+/* ------------------------------------------------------------------ */
+
+function ProjectActions({
+  repoId,
+  repoName,
+  onChanged,
+}: {
+  repoId: string;
+  repoName: string;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [renameOpen, setRenameOpen] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [nameInput, setNameInput] = React.useState(repoName);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const handleRename = async () => {
+    const nextName = nameInput.trim();
+    if (!nextName) {
+      setError("Name cannot be empty");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/repos/${repoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nextName }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Failed to rename");
+      }
+      setRenameOpen(false);
+      onChanged();
+      window.dispatchEvent(new Event("adorable:repos-updated"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to rename");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/repos/${repoId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Failed to delete");
+      }
+      setDeleteOpen(false);
+      onChanged();
+      window.dispatchEvent(new Event("adorable:repos-updated"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className="mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground/50 opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            title="Project options"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontalIcon className="size-3.5" />
+          </button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Project options</DialogTitle>
+            <DialogDescription>
+              Manage <span className="font-medium">{repoName}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setNameInput(repoName);
+                setError(null);
+                setRenameOpen(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent"
+            >
+              <PencilIcon className="size-4 text-muted-foreground" />
+              Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setError(null);
+                setDeleteOpen(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <TrashIcon className="size-4" />
+              Delete
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename project</DialogTitle>
+            <DialogDescription>
+              Give this project a new name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 pt-1">
+            <Input
+              value={nameInput}
+              onChange={(e) => {
+                setNameInput(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleRename();
+              }}
+              autoFocus
+            />
+            {error && <p className="text-[13px] text-destructive">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setRenameOpen(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleRename} disabled={busy || !nameInput.trim()}>
+              {busy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                "Rename"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete project</DialogTitle>
+            <DialogDescription>
+              This permanently deletes <span className="font-medium">{repoName}</span>,
+              including its code, conversations, and Docker container. This cannot
+              be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {error && <p className="text-[13px] text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteOpen(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={busy}
+            >
+              {busy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                "Delete"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

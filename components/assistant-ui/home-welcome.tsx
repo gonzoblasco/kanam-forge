@@ -9,13 +9,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useRepos } from "@/lib/repos-context";
 import type { RepoItem } from "@/lib/repo-types";
 import { type FC, useState } from "react";
-import { GithubIcon } from "lucide-react";
+import {
+  GithubIcon,
+  Loader2Icon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  TrashIcon,
+} from "lucide-react";
 
 function getPreviewUrl(repo: RepoItem): string | null {
   // prefer production domain
@@ -31,7 +38,7 @@ function getPreviewUrl(repo: RepoItem): string | null {
 }
 
 export const HomeWelcome: FC = () => {
-  const { repos, isLoading, onSelectProject } = useRepos();
+  const { repos, isLoading, onSelectProject, refreshRepos } = useRepos();
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [githubRepoInput, setGithubRepoInput] = useState("");
   const [githubRepoError, setGithubRepoError] = useState<string | null>(null);
@@ -122,11 +129,9 @@ export const HomeWelcome: FC = () => {
                 {repos.map((repo, index) => {
                   const previewUrl = getPreviewUrl(repo);
                   return (
-                    <button
+                    <div
                       key={repo.id}
-                      type="button"
-                      onClick={() => onSelectProject(repo.id)}
-                      className="group animate-in overflow-hidden rounded-xl border border-border/50 bg-card/50 text-left transition-all duration-200 fill-mode-both fade-in hover:border-border hover:ring-1 hover:ring-ring/20"
+                      className="group animate-in relative overflow-hidden rounded-xl border border-border/50 bg-card/50 text-left transition-all duration-200 fill-mode-both fade-in hover:border-border hover:ring-1 hover:ring-ring/20"
                       style={
                         {
                           "--tw-animation-delay": `${index * 75}ms`,
@@ -134,58 +139,69 @@ export const HomeWelcome: FC = () => {
                         } as React.CSSProperties
                       }
                     >
-                      {/* Preview thumbnail */}
-                      <div className="relative aspect-16/10 w-full overflow-hidden bg-muted/30">
-                        {previewUrl ? (
-                          <iframe
-                            src={previewUrl}
-                            title={`${repo.name} preview`}
-                            className="pointer-events-none absolute inset-0 h-[200%] w-[200%] origin-top-left scale-50 border-0"
-                            tabIndex={-1}
-                            loading="lazy"
-                            sandbox="allow-scripts allow-same-origin"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <span className="text-xs text-muted-foreground/30">
-                              No preview
-                            </span>
-                          </div>
-                        )}
-                        {/* Status dot */}
-                        <div className="absolute top-2 right-2">
-                          <div
-                            className={cn(
-                              "h-2 w-2 rounded-full ring-2 ring-card/80",
-                              repo.deployments.some((d) => d.state === "live")
-                                ? "bg-emerald-500"
-                                : repo.deployments.some(
-                                      (d) => d.state === "deploying",
-                                    )
-                                  ? "bg-amber-500"
-                                  : "bg-muted-foreground/30",
-                            )}
-                          />
-                        </div>
-                      </div>
-                      {/* Info */}
-                      <div className="px-3 py-2.5">
-                        <p className="truncate text-sm font-medium text-foreground group-hover:text-foreground">
-                          {repo.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground/50">
-                          {repo.conversations.length} chat
-                          {repo.conversations.length !== 1 ? "s" : ""}
-                          {repo.deployments.length > 0 && (
-                            <>
-                              {" · "}
-                              {repo.deployments.length} deploy
-                              {repo.deployments.length !== 1 ? "s" : ""}
-                            </>
+                      <button
+                        type="button"
+                        onClick={() => onSelectProject(repo.id)}
+                        className="block w-full text-left"
+                      >
+                        {/* Preview thumbnail */}
+                        <div className="relative aspect-16/10 w-full overflow-hidden bg-muted/30">
+                          {previewUrl ? (
+                            <iframe
+                              src={previewUrl}
+                              title={`${repo.name} preview`}
+                              className="pointer-events-none absolute inset-0 h-[200%] w-[200%] origin-top-left scale-50 border-0"
+                              tabIndex={-1}
+                              loading="lazy"
+                              sandbox="allow-scripts allow-same-origin"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center">
+                              <span className="text-xs text-muted-foreground/30">
+                                No preview
+                              </span>
+                            </div>
                           )}
-                        </p>
-                      </div>
-                    </button>
+                          {/* Status dot */}
+                          <div className="absolute top-2 right-2">
+                            <div
+                              className={cn(
+                                "h-2 w-2 rounded-full ring-2 ring-card/80",
+                                repo.deployments.some((d) => d.state === "live")
+                                  ? "bg-emerald-500"
+                                  : repo.deployments.some(
+                                        (d) => d.state === "deploying",
+                                      )
+                                    ? "bg-amber-500"
+                                    : "bg-muted-foreground/30",
+                              )}
+                            />
+                          </div>
+                        </div>
+                        {/* Info */}
+                        <div className="px-3 py-2.5">
+                          <p className="truncate text-sm font-medium text-foreground group-hover:text-foreground">
+                            {repo.name}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground/50">
+                            {repo.conversations.length} chat
+                            {repo.conversations.length !== 1 ? "s" : ""}
+                            {repo.deployments.length > 0 && (
+                              <>
+                                {" · "}
+                                {repo.deployments.length} deploy
+                                {repo.deployments.length !== 1 ? "s" : ""}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </button>
+                      <ProjectCardActions
+                        repoId={repo.id}
+                        repoName={repo.name}
+                        onChanged={() => void refreshRepos()}
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -262,3 +278,199 @@ export const HomeWelcome: FC = () => {
     </div>
   );
 };
+
+/* ------------------------------------------------------------------ */
+/*  Project card actions (rename / delete)                             */
+/* ------------------------------------------------------------------ */
+
+function ProjectCardActions({
+  repoId,
+  repoName,
+  onChanged,
+}: {
+  repoId: string;
+  repoName: string;
+  onChanged: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [nameInput, setNameInput] = useState(repoName);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRename = async () => {
+    const nextName = nameInput.trim();
+    if (!nextName) {
+      setError("Name cannot be empty");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/repos/${repoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nextName }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Failed to rename");
+      }
+      setRenameOpen(false);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to rename");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/repos/${repoId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Failed to delete");
+      }
+      setDeleteOpen(false);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Menu trigger - top-right corner of the card */}
+      <Dialog open={menuOpen} onOpenChange={setMenuOpen}>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className="absolute top-2 right-2 z-10 inline-flex size-6 items-center justify-center rounded-md bg-card/80 text-muted-foreground/60 opacity-0 shadow-sm transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            title="Project options"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontalIcon className="size-3.5" />
+          </button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Project options</DialogTitle>
+            <DialogDescription>
+              Manage <span className="font-medium">{repoName}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                setNameInput(repoName);
+                setError(null);
+                setRenameOpen(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent"
+            >
+              <PencilIcon className="size-4 text-muted-foreground" />
+              Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                setError(null);
+                setDeleteOpen(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <TrashIcon className="size-4" />
+              Delete
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename project</DialogTitle>
+            <DialogDescription>
+              Give this project a new name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 pt-1">
+            <Input
+              value={nameInput}
+              onChange={(e) => {
+                setNameInput(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleRename();
+              }}
+              autoFocus
+            />
+            {error && <p className="text-[13px] text-destructive">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setRenameOpen(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleRename} disabled={busy || !nameInput.trim()}>
+              {busy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                "Rename"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete project</DialogTitle>
+            <DialogDescription>
+              This permanently deletes{" "}
+              <span className="font-medium">{repoName}</span>, including its
+              code, conversations, and Docker container. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {error && <p className="text-[13px] text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteOpen(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={busy}
+            >
+              {busy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                "Delete"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

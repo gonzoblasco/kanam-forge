@@ -256,8 +256,9 @@ export function RepoWorkspaceShell({
       repos,
       isLoading: reposLoading,
       onSelectProject: handleSelectProject,
+      refreshRepos: loadRepos,
     }),
-    [repos, reposLoading, handleSelectProject],
+    [repos, reposLoading, handleSelectProject, loadRepos],
   );
 
   const iframeRef = useRef<HTMLIFrameElement>(null);

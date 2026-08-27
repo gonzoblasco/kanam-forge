@@ -16,6 +16,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "fs";
 import { join } from "path";
@@ -266,4 +267,35 @@ export const promoteRepoDeploymentToProduction = async (
 
   writeJsonFile(repoId, ADORABLE_METADATA_PATH, nextMetadata);
   return nextMetadata;
+};
+
+/**
+ * Rename a project (updates the visible name in metadata.json).
+ * The repoId (folder name) stays unchanged.
+ */
+export const renameRepo = async (
+  repoId: string,
+  nextName: string,
+): Promise<RepoMetadata | null> => {
+  const metadata = await readRepoMetadata(repoId);
+  if (!metadata) return null;
+
+  const nextMetadata: RepoMetadata = {
+    ...metadata,
+    name: nextName,
+  };
+  writeJsonFile(repoId, ADORABLE_METADATA_PATH, nextMetadata);
+  return nextMetadata;
+};
+
+/**
+ * Delete a project: removes the project directory (metadata, conversations,
+ * workspace) from disk. The caller is responsible for stopping/removing the
+ * Docker container first (see removeVm in docker-vm.ts).
+ */
+export const deleteRepo = async (repoId: string): Promise<boolean> => {
+  const dir = projectDir(repoId);
+  if (!existsSync(dir)) return false;
+  rmSync(dir, { recursive: true, force: true });
+  return true;
 };
